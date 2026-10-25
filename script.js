@@ -47,11 +47,11 @@
       consent: form.consent.checked,
       website: form.website.value,
     };
-    if (!data.name || !data.contact) return say('이름과 연락처를 적어 주세요', true);
-    if (!data.consent) return say('개인정보 수집·이용에 동의해 주세요', true);
+    if (!data.name || !data.contact) return say('Please enter your name and contact details.', true);
+    if (!data.consent) return say('Please agree to the use of your personal information.', true);
 
     btn.disabled = true;
-    say('보내는 중이에요…');
+    say('Sending…');
     try {
       const r = await fetch('/api/inquiry', {
         method: 'POST',
@@ -59,11 +59,11 @@
         body: JSON.stringify(data),
       });
       const out = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(out.error || '보내지 못했어요. 잠시 뒤 다시 시도해 주세요.');
+      if (!r.ok) throw new Error(out.error || "We couldn't send your request. Please try again in a moment.");
       form.reset();
-      say('상담 예약이 접수됐어요. 확인 후 연락드릴게요.');
+      say("Your consultation request is in. We'll review it and get back to you.");
     } catch (err) {
-      say(err.message || '보내지 못했어요. 잠시 뒤 다시 시도해 주세요.', true);
+      say(err.message || "We couldn't send your request. Please try again in a moment.", true);
     } finally {
       btn.disabled = false;
     }

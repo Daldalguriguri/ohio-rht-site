@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>상담 예약함 | OHIO RHT</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Anton&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+  <style>
+    :root { --forest: #0b4a36; --sage: #c8d3a9; --olive: #e8ecd0; --linen: #f8f6e9; --honey: #e3a243; }
+    [hidden] { display: none !important; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; background: var(--olive); color: var(--forest);
+      font: 400 1rem/1.6 'Pretendard Variable', Pretendard, -apple-system, sans-serif; word-break: keep-all;
+    }
+    h1, h2, p { margin: 0; }
+    :focus-visible { outline: 3px solid var(--honey); outline-offset: 2px; }
+    .wrap { max-width: 44rem; margin: 0 auto; padding: 1.5rem 1rem 4rem; }
+    .brand { font: 400 1.5rem/1 'Anton', sans-serif; margin-bottom: 1.5rem; }
+    .box { background: var(--linen); border-radius: 1.5rem; padding: 1.5rem; }
+    label { display: block; font-weight: 700; margin-bottom: 0.5rem; }
+    input[type=password] {
+      width: 100%; min-height: 3.25rem; padding: 0 1rem; font: inherit; font-size: 1rem;
+      border: 2px solid rgba(11, 74, 54, 0.25); border-radius: 1rem; background: #fff; color: var(--forest);
+    }
+    button { font: 700 1rem/1 inherit; font-family: inherit; cursor: pointer; border: 0; }
+    .primary { width: 100%; min-height: 3.25rem; margin-top: 1rem; border-radius: 999px; background: var(--forest); color: var(--linen); }
+    .err { color: #a1301c; font-weight: 700; margin-top: 0.75rem; min-height: 1.6em; }
+    .top { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
+    .count { background: var(--forest); color: var(--olive); border-radius: 1.5rem; padding: 1.25rem 1.5rem; margin-bottom: 1rem; }
+    .count strong { display: block; font: 400 3.5rem/1 'Anton', sans-serif; color: var(--honey); }
+    .ghost { min-height: 2.75rem; padding: 0 1.1rem; border-radius: 999px; background: transparent; border: 2px solid var(--forest); color: var(--forest); }
+    .list { display: grid; gap: 0.75rem; }
+    .card { background: var(--linen); border-radius: 1.25rem; padding: 1.1rem 1.25rem; }
+    .card.is-new { box-shadow: inset 0 0 0 2px var(--honey); }
+    .meta { font-size: 0.875rem; opacity: 0.7; }
+    .name { font-size: 1.125rem; font-weight: 700; margin: 0.15rem 0; }
+    .contact { background: none; padding: 0; color: var(--forest); text-decoration: underline; text-underline-offset: 0.2em; font-size: 1rem; font-weight: 700; }
+    .pref { margin-top: 0.5rem; white-space: pre-wrap; }
+    .states { display: flex; gap: 0.5rem; margin-top: 0.9rem; flex-wrap: wrap; }
+    .states button { min-height: 2.75rem; padding: 0 1rem; border-radius: 999px; background: var(--olive); color: var(--forest); }
+    .states button[aria-pressed=true] { background: var(--forest); color: var(--linen); }
+    .empty { text-align: center; padding: 2rem 1rem; }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <p class="brand">-OHIO RHT 상담 예약함</p>
+
+    <form id="login" class="box">
+      <label for="pw">관리자 비밀번호</label>
+      <input id="pw" type="password" autocomplete="current-password" required>
+      <button class="primary" type="submit">열기</button>
+      <p class="err" id="login-err" role="alert"></p>
+    </form>
+
+    <section id="board" hidden>
+      <div class="top">
+        <h1 style="font-size:1.25rem">상담 예약 목록</h1>
+        <div style="display:flex;gap:.5rem">
+          <button class="ghost" id="reload" type="button">새로고침</button>
+          <button class="ghost" id="logout" type="button">잠그기</button>
+        </div>
+      </div>
+      <div class="count"><strong id="new-count">0</strong>새 문의</div>
+      <p class="err" id="board-err" role="alert"></p>
+      <div class="list" id="list"></div>
+    </section>
+  </main>
+
+  <script>
+    const KEY = 'rht-admin-pw';
+    const STATUSES = ['새 문의', '연락함', '완료'];
+    const $ = (id) => document.getElementById(id);
+    const loginForm = $('login'), board = $('board'), list = $('list');
+
+    const api = (method, body) => fetch('/api/admin', {
+      method,
+      headers: { 'x-admin-password': sessionStorage.getItem(KEY) || '', 'Content-Type': 'application/json' },
+      body: body ? JSON.stringify(body) : undefined,
+    }).then(async (r) => ({ ok: r.ok, status: r.status, data: await r.json().catch(() => ({})) }));
+
+    const fmt = (iso) => new Date(iso).toLocaleString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short', hour: '2-digit', minute: '2-digit' });
+
+    function lock(msg) {
+      sessionStorage.removeItem(KEY);
+      board.hidden = true; loginForm.hidden = false;
+      $('pw').value = ''; $('login-err').textContent = msg || ''; $('pw').focus();
+    }
+
+    function render(rows) {
+      $('new-count').textContent = rows.filter((r) => r.status === '새 문의').length;
+      list.replaceChildren();
+      if (!rows.length) {
+        const p = document.createElement('p'); p.className = 'card empty'; p.textContent = '아직 들어온 상담 예약이 없어요.';
+        return list.append(p);
+      }
+      rows.forEach((row) => {
+        const card = document.createElement('article');
+        card.className = 'card' + (row.status === '새 문의' ? ' is-new' : '');
+        const meta = document.createElement('p'); meta.className = 'meta'; meta.textContent = fmt(row.created_at);
+        const name = document.createElement('p'); name.className = 'name'; name.textContent = row.name;
+        const contact = document.createElement('button'); contact.className = 'contact'; contact.type = 'button';
+        contact.textContent = row.contact; contact.title = '눌러서 복사';
+        contact.onclick = async () => {
+          try { await navigator.clipboard.writeText(row.contact); contact.textContent = '복사했어요'; setTimeout(() => (contact.textContent = row.contact), 1200); }
+          catch { const s = getSelection(), rg = document.createRange(); rg.selectNodeContents(contact); s.removeAllRanges(); s.addRange(rg); }
+        };
+        const pref = document.createElement('p'); pref.className = 'pref'; pref.textContent = row.preferred ? '원하는 상담: ' + row.preferred : '원하는 상담: (적지 않음)';
+        const states = document.createElement('div'); states.className = 'states';
+        STATUSES.forEach((s) => {
+          const b = document.createElement('button'); b.type = 'button'; b.textContent = s;
+          b.setAttribute('aria-pressed', String(row.status === s));
+          b.onclick = async () => {
+            if (row.status === s) return;
+            const r = await api('PATCH', { id: row.id, status: s });
+            if (r.status === 401) return lock('비밀번호가 맞지 않아요.');
+            if (!r.ok) { $('board-err').textContent = r.data.error || '바꾸지 못했어요.'; return; }
+            load();
+          };
+          states.append(b);
+        });
+        card.append(meta, name, contact, pref, states);
+        list.append(card);
+      });
+    }
+
+    async function load() {
+      $('board-err').textContent = '';
+      const r = await api('GET');
+      if (r.status === 401) return lock('비밀번호가 맞지 않아요.');
+      if (!r.ok) { loginForm.hidden = true; board.hidden = false; $('board-err').textContent = r.data.error || '불러오지 못했어요.'; return; }
+      loginForm.hidden = true; board.hidden = false;
+      render(r.data.rows || []);
+    }
+
+    loginForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      sessionStorage.setItem(KEY, $('pw').value);
+      load();
+    });
+    $('reload').onclick = load;
+    $('logout').onclick = () => lock('');
+    if (sessionStorage.getItem(KEY)) load(); else $('pw').focus();
+  </script>
+</body>
+</html>
